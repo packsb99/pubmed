@@ -95,8 +95,11 @@ $("#goBtn").onclick=run;
 $("#savedBtn").onclick=()=>{S.view=S.view=="saved"?"results":"saved";render()};
 async function post(name,p){
  const qs=new URLSearchParams({...p,tool:"journal_watch",retmode:"json"}).toString(),base=`https://eutils.ncbi.nlm.nih.gov/entrez/eutils/${name}.fcgi`;
- const r=qs.length<6000?await fetch(`${base}?${qs}`):await fetch(base,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:qs});
- if(!r.ok)throw new Error(`PubMed returned HTTP ${r.status}`);return r.json();
+ const get=()=>fetch(`${base}?${qs}`),pst=()=>fetch(base,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:qs});
+ let r;
+ try{r=await(qs.length<1800?get():pst())}catch(_){
+  try{r=await(qs.length<1800?pst():get())}catch(e2){throw new Error(`${e2.message} (${name}, request size ${qs.length} characters)`)}}
+ if(!r.ok)throw new Error(`PubMed returned HTTP ${r.status} (${name}, request size ${qs.length})`);return r.json();
 }
 async function run(){
  S.view="results";$("#out").innerHTML='<div class="empty">Searching PubMed…</div>';$("#meta").textContent="";
@@ -105,7 +108,7 @@ async function run(){
   let pool=J.filter(j=>j.g.includes(S.spec)&&j.c>=S.min),n1=pool.length;
   if(S.gen&&q)pool=pool.concat(J.filter(j=>j.g.includes("Medicine (miscellaneous)")&&j.c>=10&&!pool.includes(j)));
   if(!pool.length){S.res=[];S.info={n:0,j:0};return render()}
-  const is=pool.flatMap(j=>j.i).map(x=>x.slice(0,4)+"-"+x.slice(4)+"[IS]").join(" OR ");
+  const is=pool.map(j=>j.i[0]).map(x=>x.slice(0,4)+"-"+x.slice(4)+"[IS]").join(" OR ");
   let term=q?`(${q}) AND (${is})`:`(${is})`;
   if(S.ev=="clin")term=`(${term}) NOT (("animals"[mh] NOT "humans"[mh]) OR mice[tiab] OR mouse[tiab] OR murine[tiab] OR rats[tiab] OR zebrafish[tiab] OR "in vitro"[tiab] OR "cell line"[tiab] OR "cell lines"[tiab] OR knockout[tiab])`;
   if(S.ev=="trial")term=`(${term}) AND ("Randomized Controlled Trial"[pt] OR "Clinical Trial"[pt] OR "Meta-Analysis"[pt] OR "Systematic Review"[pt] OR "Review"[pt] OR "Practice Guideline"[pt] OR "Guideline"[pt] OR "Observational Study"[pt])`;
