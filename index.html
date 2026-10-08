@@ -45,16 +45,19 @@ input[type=range]{width:100%;accent-color:var(--acc)}.hint{font-size:12px;color:
 <div class="chips" id="specs" role="group" aria-label="Specialty"></div>
 <div class="search"><input id="q" type="search" placeholder="Topic, e.g. cutaneous vasculitis (optional)" enterkeyhint="search" autocomplete="off"></div>
 <div class="chips sm" id="presets"></div>
+<div class="search" style="padding-top:2px"><div class="seg" id="mode"></div></div>
 <div class="meta" id="meta"></div><div id="out"><div class="empty">Choose a specialty and tap Search.</div></div>
+<div class="meta" style="text-align:center;padding-bottom:16px">Version 7 · Journal metrics: SCImago Journal &amp; Country Rank, 2025 · Citations: NIH iCite</div>
 <div class="bar"><button id="filtBtn">Filters</button><button class="go" id="goBtn">Search</button></div>
 <div class="sheet" id="sheet"><div class="panel">
 <h2>Filters</h2>
 <div class="row"><label for="min">Minimum impact <span id="minV"></span></label><input id="min" type="range" min="0" max="15" step="0.5">
 <div class="hint">Journal citations per article over 2 years (SCImago). A close stand-in for Impact Factor, not the Clarivate number.</div></div>
 <div class="row"><label>Published in the last</label><div class="seg" id="days"></div></div>
-<div class="row"><label>Evidence type</label><div class="seg" id="ev"></div><div class="hint">Clinical removes animal, cell-line and lab studies. Trials &amp; reviews keeps only trials, meta-analyses, reviews, guidelines and observational studies.</div></div>
-<div class="row"><label>Sort by</label><div class="seg" id="sort"></div><div class="hint">SJR is SCImago's prestige-weighted journal score; Q1 means top quarter of its field.</div></div>
+<div class="row"><label>Evidence type</label><div class="seg" id="ev"></div><div class="hint">Clinical removes animal, cell-line and lab studies. Trials &amp; meta-analyses keeps only trials, meta-analyses, systematic reviews, guidelines and observational studies.</div></div>
+<div class="row"><label>Sort by</label><div class="seg" id="sort"></div><div class="hint">Top picks ranks by study type and whether the journal ran an editorial on the paper (in Most cited mode: by citations). SJR is SCImago's journal score; Q1 is the top quarter of its field.</div></div>
 <div class="row"><label style="font-weight:400"><span>Also include top general journals (NEJM, Lancet, JAMA…) when a topic is set</span><input type="checkbox" id="gen" style="width:22px;height:22px;accent-color:var(--acc)"></label></div>
+<div class="row"><label style="font-weight:400"><span>Include narrative reviews (systematic reviews and meta-analyses are always kept)</span><input type="checkbox" id="rev" style="width:22px;height:22px;accent-color:var(--acc)"></label></div>
 <button class="go" id="apply" style="width:100%;padding:14px;border-radius:12px;border:0;background:var(--acc);color:var(--bg);font-weight:600">Apply and search</button>
 </div></div>
 <script>
@@ -67,7 +70,7 @@ const PRESETS={Dermatology:[
 const $=s=>document.querySelector(s),esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const J=D.j.map(r=>({t:r[0],i:r[1],c:r[2],g:r[3].map(k=>D.g[k]),s:r[4],q:r[5]}));
 const byIssn=new Map();J.forEach(j=>j.i.forEach(x=>byIssn.set(x,j)));
-const S={spec:"Dermatology",q:"",min:2,days:90,gen:true,ev:"clin",sort:"imp",view:"results",res:[]};
+const S={spec:"Dermatology",q:"",min:2,days:90,gen:true,ev:"clin",sort:"pick",mode:"new",rev:false,view:"results",res:[]};
 let saved=[];try{saved=JSON.parse(localStorage.getItem("jw_saved")||"[]")}catch(e){}
 const persist=()=>{try{localStorage.setItem("jw_saved",JSON.stringify(saved))}catch(e){}$("#savedBtn").textContent=`Saved (${saved.length})`};
 function chips(){
@@ -80,14 +83,17 @@ $("#presets").onclick=e=>{const b=e.target.closest("[data-p]");if(!b)return;cons
 $("#q").oninput=e=>{S.q=e.target.value;document.querySelectorAll("#presets .chip").forEach(c=>c.setAttribute("aria-pressed","false"))};
 $("#q").onkeydown=e=>{if(e.key=="Enter"){e.target.blur();run()}};
 $("#days").innerHTML=[30,90,180,365].map(d=>`<button class="chip" data-d="${d}">${d==365?"1 yr":d+" d"}</button>`).join("");
-function sync(){document.querySelectorAll("#ev .chip").forEach(c=>c.setAttribute("aria-pressed",c.dataset.ev==S.ev));document.querySelectorAll("#sort .chip").forEach(c=>c.setAttribute("aria-pressed",c.dataset.so==S.sort));$("#min").value=S.min;$("#minV").textContent=S.min.toFixed(1);$("#gen").checked=S.gen;document.querySelectorAll("#days .chip").forEach(c=>c.setAttribute("aria-pressed",c.dataset.d==S.days))}
+function sync(){document.querySelectorAll("#mode .chip").forEach(c=>c.setAttribute("aria-pressed",c.dataset.m==S.mode));document.querySelectorAll("#ev .chip").forEach(c=>c.setAttribute("aria-pressed",c.dataset.ev==S.ev));document.querySelectorAll("#sort .chip").forEach(c=>c.setAttribute("aria-pressed",c.dataset.so==S.sort));$("#min").value=S.min;$("#minV").textContent=S.min.toFixed(1);$("#gen").checked=S.gen;$("#rev").checked=S.rev;document.querySelectorAll("#days .chip").forEach(c=>c.setAttribute("aria-pressed",c.dataset.d==S.days))}
 $("#min").oninput=e=>{S.min=+e.target.value;$("#minV").textContent=S.min.toFixed(1)};
-$("#ev").innerHTML=[["clin","Clinical"],["trial","Trials & reviews"],["all","All"]].map(x=>`<button class="chip" data-ev="${x[0]}">${x[1]}</button>`).join("");
-$("#sort").innerHTML=[["imp","Impact"],["sjr","SJR"],["new","Newest"]].map(x=>`<button class="chip" data-so="${x[0]}">${x[1]}</button>`).join("");
+$("#ev").innerHTML=[["clin","Clinical"],["trial","Trials & meta-analyses"],["all","All"]].map(x=>`<button class="chip" data-ev="${x[0]}">${x[1]}</button>`).join("");
+$("#sort").innerHTML=[["pick","Top picks"],["imp","Impact"],["sjr","SJR"],["new","Newest"]].map(x=>`<button class="chip" data-so="${x[0]}">${x[1]}</button>`).join("");
+$("#mode").innerHTML=[["new","New"],["cited","Most cited"]].map(x=>`<button class="chip" data-m="${x[0]}">${x[1]}</button>`).join("");
+$("#mode").onclick=e=>{const b=e.target.closest("[data-m]");if(!b)return;S.mode=b.dataset.m;if(S.mode=="cited"&&S.days<180)S.days=365;sync();run()};
 $("#ev").onclick=e=>{const b=e.target.closest("[data-ev]");if(b){S.ev=b.dataset.ev;sync()}};
 $("#sort").onclick=e=>{const b=e.target.closest("[data-so]");if(b){S.sort=b.dataset.so;sync()}};
 $("#days").onclick=e=>{const b=e.target.closest("[data-d]");if(b){S.days=+b.dataset.d;sync()}};
 $("#gen").onchange=e=>S.gen=e.target.checked;
+$("#rev").onchange=e=>S.rev=e.target.checked;
 $("#filtBtn").onclick=()=>{sync();$("#sheet").classList.add("on")};
 $("#sheet").onclick=e=>{if(e.target.id=="sheet")e.target.classList.remove("on")};
 $("#apply").onclick=()=>{$("#sheet").classList.remove("on");run()};
@@ -101,6 +107,31 @@ async function post(name,p){
   try{r=await(qs.length<1800?pst():get())}catch(e2){throw new Error(`${e2.message} (${name}, request size ${qs.length} characters)`)}}
  if(!r.ok)throw new Error(`PubMed returned HTTP ${r.status} (${name}, request size ${qs.length})`);return r.json();
 }
+const tierOf=T=>T.some(x=>/Comment|Editorial|Letter|News/.test(x))?0:T.some(x=>/Randomized Controlled Trial|Meta-Analysis|Systematic Review|Guideline/.test(x))?3:T.some(x=>/Clinical Trial|Observational Study|Multicenter Study/.test(x))?2:1;
+const score=r=>r.tier+(r.ed?3:0);
+function rank(a,b){
+ if(S.sort=="new")return b.date.localeCompare(a.date);
+ if(S.sort=="sjr")return b.s-a.s||b.date.localeCompare(a.date);
+ if(S.sort=="imp")return b.c-a.c||b.date.localeCompare(a.date);
+ if(S.mode=="cited")return(b.cc??-1)-(a.cc??-1)||b.c-a.c;
+ return score(b)-score(a)||b.c-a.c||b.date.localeCompare(a.date);
+}
+async function topCited(ids,m){
+ for(let i=0;i<ids.length;i+=250){
+  const r=await fetch(`https://icite.od.nih.gov/api/pubs?pmids=${ids.slice(i,i+250).join(",")}&fl=pmid,citation_count,relative_citation_ratio`);
+  if(!r.ok)throw new Error("iCite "+r.status);
+  const j=await r.json();(j.data||j).forEach(x=>m.set(String(x.pmid),{cc:x.citation_count||0,rcr:x.relative_citation_ratio}));
+ }
+ if(!m.size)throw new Error("no citation data");
+ return ids.filter(x=>m.has(x)).sort((a,b)=>m.get(b).cc-m.get(a).cc).slice(0,40);
+}
+async function editorials(ids){
+ const r=await fetch(`https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=${ids.join(",")}&retmode=xml&tool=journal_watch`);
+ if(!r.ok)throw new Error("efetch "+r.status);
+ const x=new DOMParser().parseFromString(await r.text(),"text/xml"),s=new Set();
+ x.querySelectorAll("PubmedArticle").forEach(a=>{if(a.querySelector('CommentsCorrections[RefType="CommentIn"]'))s.add(a.querySelector("MedlineCitation > PMID").textContent)});
+ return s;
+}
 async function run(){
  S.view="results";$("#out").innerHTML='<div class="empty">Searching PubMed…</div>';$("#meta").textContent="";
  try{
@@ -111,32 +142,37 @@ async function run(){
   const is=pool.map(j=>j.i[0]).map(x=>x.slice(0,4)+"-"+x.slice(4)+"[IS]").join(" OR ");
   let term=q?`(${q}) AND (${is})`:`(${is})`;
   if(S.ev=="clin")term=`(${term}) NOT (("animals"[mh] NOT "humans"[mh]) OR mice[tiab] OR mouse[tiab] OR murine[tiab] OR rats[tiab] OR zebrafish[tiab] OR "in vitro"[tiab] OR "cell line"[tiab] OR "cell lines"[tiab] OR knockout[tiab])`;
-  if(S.ev=="trial")term=`(${term}) AND ("Randomized Controlled Trial"[pt] OR "Clinical Trial"[pt] OR "Meta-Analysis"[pt] OR "Systematic Review"[pt] OR "Review"[pt] OR "Practice Guideline"[pt] OR "Guideline"[pt] OR "Observational Study"[pt])`;
-  const es=await post("esearch",{db:"pubmed",term,datetype:"edat",reldate:S.days,retmax:200,sort:"pub_date"});
+  if(S.ev=="trial")term=`(${term}) AND ("Randomized Controlled Trial"[pt] OR "Clinical Trial"[pt] OR "Meta-Analysis"[pt] OR "Systematic Review"[pt] OR "Practice Guideline"[pt] OR "Guideline"[pt] OR "Observational Study"[pt])`;
+  if(!S.rev)term=`(${term}) NOT (Review[pt] NOT ("Systematic Review"[pt] OR Meta-Analysis[pt]))`;
+  const es=await post("esearch",{db:"pubmed",term,datetype:"edat",reldate:S.days,retmax:S.mode=="cited"?1000:200,sort:"pub_date"});
   if(es.esearchresult?.ERROR)throw new Error(es.esearchresult.ERROR);
-  const ids=es.esearchresult.idlist||[];let res=[],skipped=0;
+  let ids=es.esearchresult.idlist||[];const total=ids.length;let res=[],skipped=0,noCite=false,noEd=false;const cite=new Map();let eds=new Set();
+  if(S.mode=="cited"&&ids.length){try{ids=await topCited(ids,cite)}catch(_){noCite=true;ids=ids.slice(0,100)}}
+  else if(ids.length){try{eds=await editorials(ids.slice(0,150))}catch(_){noEd=true}}
   if(ids.length){
    const sm=await post("esummary",{db:"pubmed",id:ids.join(",")});
-   for(const id of ids){const r=sm.result?.[id];if(!r)continue;
+   for(const id of ids){const r=sm.result?.[id];if(!r)continue;const PT=r.pubtype||[];if(!S.rev&&PT.includes("Review")&&!PT.some(x=>/Systematic Review|Meta-Analysis/.test(x))){skipped++;continue}
     const j=byIssn.get((r.issn||"").replace("-",""))||byIssn.get((r.essn||"").replace("-",""));
     if(!j||j.c<S.min){skipped++;continue}
     const t=document.createElement("div");t.innerHTML=r.title||"";
-    res.push({id,title:t.textContent,journal:r.fulljournalname||r.source,c:j.c,s:j.s,q:j.q,date:(r.sortpubdate||"").slice(0,10),
+    res.push({id,title:t.textContent,journal:r.fulljournalname||r.source,c:j.c,s:j.s,q:j.q,tier:tierOf(r.pubtype||[]),ed:eds.has(id),cc:cite.get(id)?.cc,rcr:cite.get(id)?.rcr,date:(r.sortpubdate||"").slice(0,10),
      au:(r.authors||[]).map(a=>a.name),types:(r.pubtype||[]).filter(x=>/Review|Trial|Meta-Analysis|Guideline|Randomized/.test(x)).slice(0,2)});}
-   res.sort((a,b)=>S.sort=="new"?b.date.localeCompare(a.date):S.sort=="sjr"?b.s-a.s||b.date.localeCompare(a.date):b.c-a.c||b.date.localeCompare(a.date));
+   res.sort(rank);
   }
-  S.res=res;S.info={n:res.length,j:pool.length,skipped,capped:ids.length>=200};render();
+  S.res=res;S.info={n:res.length,j:pool.length,skipped,capped:total>=(S.mode=="cited"?1000:200),noCite,noEd};render();
  }catch(err){$("#out").innerHTML=`<div class="note"><b>Couldn't reach PubMed.</b><br>${esc(err.message)}<br>Check your connection and tap Search to retry. If it keeps failing, send me this message.</div>`}
 }
 function card(r){const sv=saved.some(s=>s.id==r.id),au=r.au.length>3?r.au.slice(0,3).join(", ")+" et al.":r.au.join(", ");
  return `<article class="card"><div class="imp"><b>${r.c.toFixed(1)}</b><span>impact</span></div><div class="body"><h3>${esc(r.title)}</h3>
- <div class="sub">${esc(au)}</div><div class="sub"><i>${esc(r.journal)}</i> · ${esc(r.date)}</div><div class="sub">SJR ${(r.s||0).toFixed(2)}${r.q?" · "+esc(r.q):""}</div>${r.types.map(t=>`<span class="tag">${esc(t)}</span>`).join("")}
- <div class="acts"><a href="https://pubmed.ncbi.nlm.nih.gov/${r.id}/" target="_blank" rel="noopener">PubMed</a><button data-save="${r.id}">${sv?"Saved":"Save"}</button><button data-share="${r.id}">Share</button></div></div></article>`}
+ <div class="sub">${esc(au)}</div><div class="sub"><i>${esc(r.journal)}</i> · ${esc(r.date)}</div><div class="sub">SJR ${(r.s||0).toFixed(2)}${r.q?" · "+esc(r.q):""}</div>${r.cc!=null?`<div class="sub">Cited ${r.cc} times${r.rcr?` · RCR ${(+r.rcr).toFixed(1)}`:""}</div>`:""}${r.types.map(t=>`<span class="tag">${esc(t)}</span>`).join("")}
+ ${r.ed?'<span class="tag">Editorial attached</span>':""}<div class="acts"><a href="https://pubmed.ncbi.nlm.nih.gov/${r.id}/" target="_blank" rel="noopener">PubMed</a><button data-save="${r.id}">${sv?"Saved":"Save"}</button><button data-share="${r.id}">Share</button></div></div></article>`}
 function render(){
  $("#savedBtn").textContent=`Saved (${saved.length})`;
  const list=S.view=="saved"?saved:S.res;
- $("#meta").textContent=S.view=="saved"?"Saved papers":S.info?`${S.info.n} papers from ${S.info.j} journals · impact ${S.min.toFixed(1)}+ · last ${S.days} days`+(S.info.capped?" · showing newest 200":""):"";
+ $("#meta").textContent=S.view=="saved"?"Saved papers":S.info?`${S.mode=="cited"?"Most cited":"New"} · ${S.info.n} papers from ${S.info.j} journals · impact ${S.min.toFixed(1)}+ · last ${S.days} days`+(S.info.capped?(S.mode=="cited"?" · searched newest 1000":" · showing newest 200"):""):"";
  let h="";
+ if(S.view=="results"&&S.info?.noCite&&S.mode=="cited")h+=`<div class="note">Citation data couldn't be loaded from NIH iCite, so these are newest papers, not most cited.</div>`;
+ if(S.view=="results"&&S.info?.noEd&&S.mode=="new")h+=`<div class="note">Editorial links couldn't be checked this time, so Top picks uses study type only.</div>`;
  if(S.view=="results"&&S.info&&S.info.n<5&&S.min>=1)h+=`<div class="note">Only ${S.info.n} found. <button id="lower">Lower the cutoff to ${Math.max(0,S.min-1).toFixed(1)}</button></div>`;
  h+=list.length?list.map(card).join(""):`<div class="empty">${S.view=="saved"?"Nothing saved yet. Tap Save on any paper.":"No papers match. Try a wider date window or a lower impact cutoff."}</div>`;
  $("#out").innerHTML=h;
